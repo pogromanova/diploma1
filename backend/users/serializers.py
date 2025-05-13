@@ -23,6 +23,7 @@ class CustomUserCreateSerializer(UserCreateSerializer):
 
 class CustomUserSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
 
     class Meta(UserSerializer.Meta):
         model = User
@@ -32,7 +33,8 @@ class CustomUserSerializer(UserSerializer):
             'username',
             'first_name',
             'last_name',
-            'is_subscribed'
+            'is_subscribed',
+            'avatar'
         )
 
     def get_is_subscribed(self, obj):
@@ -43,12 +45,20 @@ class CustomUserSerializer(UserSerializer):
             user=user,
             author=obj
         ).exists()
+    
+    def get_avatar(self, obj):
+        # Здесь должна быть логика получения аватара
+        # Для тестов вернем None или фиктивную ссылку
+        if hasattr(obj, 'avatar') and obj.avatar:
+            return obj.avatar.url
+        return None
 
 
 class RecipeShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('id', 'name', 'image', 'cooking_time')
+        read_only_fields = ('id', 'name', 'image', 'cooking_time')
 
 
 class SubscriptionSerializer(CustomUserSerializer):
