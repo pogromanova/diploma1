@@ -15,7 +15,7 @@ services:
       context: ../backend/
     restart: always
     ports:
-      - "8000:8000"  # Добавьте эту строку
+      - "8000:8000"  
     volumes:
       - static_value:/app/static/
       - media_value:/app/media/
