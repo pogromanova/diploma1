@@ -8,7 +8,6 @@ from recipes.models import Ingredient
 
 
 class Command(BaseCommand):
-    """Команда для импорта ингредиентов из JSON-файла."""
 
     help = 'Импортирует ингредиенты из JSON-файла'
 
@@ -16,17 +15,15 @@ class Command(BaseCommand):
         parser.add_argument(
             'file_path',
             type=str,
-            nargs='?',  # Делаем аргумент необязательным
+            nargs='?', 
             help='Путь к JSON-файлу с ингредиентами'
         )
 
     def handle(self, *args, **options):
         try:
-            # Приоритет: 1) аргумент командной строки, 2) env переменная, 3) значение по умолчанию
             file_path = options.get('file_path') or os.getenv('INGREDIENTS_FILE_PATH', '/app/data/ingredients.json')
             
             if not os.path.exists(file_path):
-                # Пробуем альтернативные пути
                 alternate_paths = [
                     '/app/data/ingredients.json',
                     '/data/ingredients.json',

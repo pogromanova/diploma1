@@ -1,4 +1,3 @@
-# backend/recipes/serializers.py
 import base64
 from django.core.files.base import ContentFile
 from rest_framework import serializers
@@ -58,9 +57,9 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(),
         many=True,
-        required=False  # Делаем необязательным для правильной валидации
+        required=False 
     )
-    image = Base64ImageField()
+    image = Base64ImageField(required=True)  
     cooking_time = serializers.IntegerField(min_value=1)
 
     class Meta:
@@ -75,19 +74,20 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, data):
-        # Проверка обязательности ингредиентов
+        if 'image' not in data or not data['image']:
+            raise serializers.ValidationError({
+                'image': ['Это поле обязательно.']
+            })
         if not data.get('ingredients'):
             raise serializers.ValidationError({
                 'ingredients': ['Обязательное поле.']
             })
         
-        # Проверка обязательности тегов (если указаны, но пустые)
         if 'tags' in data and not data['tags']:
             raise serializers.ValidationError({
                 'tags': ['Обязательное поле.']
             })
             
-        # Проверка уникальности ингредиентов
         ingredient_ids = []
         for item in data['ingredients']:
             ingredient_id = item['id'].id if hasattr(item['id'], 'id') else item['id']
@@ -97,7 +97,6 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
                 })
             ingredient_ids.append(ingredient_id)
         
-        # Проверка уникальности тегов
         if 'tags' in data and data['tags']:
             tag_ids = [tag.id if hasattr(tag, 'id') else tag for tag in data['tags']]
             if len(tag_ids) != len(set(tag_ids)):
@@ -131,6 +130,10 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         return recipe
 
     def update(self, instance, validated_data):
+        if 'image' in validated_data and not validated_data['image']:
+            raise serializers.ValidationError({
+                'image': ['Это поле не может быть пустым.']
+            })
         if 'ingredients' in validated_data:
             ingredients = validated_data.pop('ingredients')
             instance.recipe_ingredients.all().delete()
@@ -150,7 +153,6 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
 
 class RecipeReadSerializer(serializers.ModelSerializer):
-    tags = TagSerializer(many=True, read_only=True)
     author = CustomUserSerializer(read_only=True)
     ingredients = RecipeIngredientSerializer(
         source='recipe_ingredients',
@@ -165,7 +167,6 @@ class RecipeReadSerializer(serializers.ModelSerializer):
         model = Recipe
         fields = (
             'id',
-            'tags',
             'author',
             'ingredients',
             'is_favorited',
@@ -195,7 +196,6 @@ class RecipeReadSerializer(serializers.ModelSerializer):
         ).exists()
 
     def to_representation(self, instance):
-        """Переопределяем для корректного отображения URL изображения"""
         data = super().to_representation(instance)
         request = self.context.get('request')
         
@@ -205,14 +205,12 @@ class RecipeReadSerializer(serializers.ModelSerializer):
         return data
 
 
-# Простой сериализатор для ответов favorite и shopping_cart
 class RecipeShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('id', 'name', 'image', 'cooking_time')
     
     def to_representation(self, instance):
-        """Переопределяем для корректного URL изображения"""
         data = super().to_representation(instance)
         request = self.context.get('request')
         

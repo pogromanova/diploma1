@@ -1,4 +1,3 @@
-# backend/recipes/migrations/0001_initial.py
 from django.db import migrations, models
 import django.db.models.deletion
 from django.conf import settings

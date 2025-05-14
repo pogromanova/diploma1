@@ -29,7 +29,6 @@ python manage.py shell <<EOF
 from recipes.models import Tag, Ingredient
 from users.models import User
 
-# Создание тегов
 tags = [
     {'name': 'Завтрак', 'color': '#FF5733', 'slug': 'breakfast'},
     {'name': 'Обед', 'color': '#33FF57', 'slug': 'lunch'},
@@ -39,7 +38,6 @@ tags = [
 for tag_data in tags:
     Tag.objects.get_or_create(**tag_data)
 
-# Создание тестового пользователя
 if not User.objects.filter(email='test@test.com').exists():
     user = User.objects.create_user(
         username='testuser',
@@ -49,7 +47,6 @@ if not User.objects.filter(email='test@test.com').exists():
         last_name='User'
     )
 
-# Создание ингредиентов (если нет команды import_ingredients)
 if not Ingredient.objects.exists():
     Ingredient.objects.bulk_create([
         Ingredient(name='Мука', measurement_unit='г'),

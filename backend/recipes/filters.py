@@ -1,4 +1,3 @@
-# backend/recipes/filters.py
 from django_filters import rest_framework as filters
 from django.contrib.auth import get_user_model
 

@@ -1,4 +1,3 @@
-# backend/users/migrations/0001_initial.py
 from django.db import migrations, models
 import django.contrib.auth.models
 import django.contrib.auth.validators

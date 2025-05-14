@@ -1,4 +1,3 @@
-# backend/recipes/migrations/0002_auto_20240115_1234.py
 from django.db import migrations, models
 
 

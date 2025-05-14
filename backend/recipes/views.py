@@ -1,4 +1,3 @@
-# backend/recipes/views.py
 from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -70,7 +69,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     )
     def get_link(self, request, pk=None):
         recipe = self.get_object()
-        # Используем request для получения полного URL
         short_link = request.build_absolute_uri(f'/recipes/{recipe.id}/')
         return Response({'short-link': short_link})
 
@@ -92,7 +90,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
             
             Favorite.objects.create(user=user, recipe=recipe)
             
-            # Используем короткий сериализатор для ответа
             serializer = RecipeShortSerializer(
                 recipe,
                 context={'request': request}
@@ -127,7 +124,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
             
             ShoppingCart.objects.create(user=user, recipe=recipe)
             
-            # Используем короткий сериализатор для ответа
             serializer = RecipeShortSerializer(
                 recipe,
                 context={'request': request}

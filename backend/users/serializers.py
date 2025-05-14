@@ -1,4 +1,3 @@
-# backend/users/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from djoser.serializers import UserCreateSerializer, UserSerializer
@@ -10,7 +9,6 @@ User = get_user_model()
 
 
 class CustomUserCreateSerializer(UserCreateSerializer):
-    """Сериализатор для создания пользователя."""
     
     class Meta(UserCreateSerializer.Meta):
         model = User
@@ -24,7 +22,6 @@ class CustomUserCreateSerializer(UserCreateSerializer):
         )
         
     def validate_username(self, value):
-        """Проверка username на соответствие паттерну."""
         import re
         if not re.match(r'^[\w.@+-]+$', value):
             raise serializers.ValidationError(
@@ -34,7 +31,6 @@ class CustomUserCreateSerializer(UserCreateSerializer):
 
 
 class CustomUserSerializer(UserSerializer):
-    """Сериализатор для отображения пользователя."""
     is_subscribed = serializers.SerializerMethodField()
     avatar = Base64ImageField(required=False, allow_null=True)
 
@@ -52,7 +48,6 @@ class CustomUserSerializer(UserSerializer):
         read_only_fields = ('id',)
 
     def get_is_subscribed(self, obj):
-        """Проверка подписки текущего пользователя на данного автора."""
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             user = request.user
@@ -65,11 +60,9 @@ class CustomUserSerializer(UserSerializer):
         return False
 
     def to_representation(self, instance):
-        """Преобразование данных для ответа."""
         data = super().to_representation(instance)
         request = self.context.get('request')
         
-        # Обработка URL аватара
         if instance.avatar:
             if request:
                 data['avatar'] = request.build_absolute_uri(instance.avatar.url)
@@ -82,7 +75,6 @@ class CustomUserSerializer(UserSerializer):
 
 
 class RecipeShortSerializer(serializers.Serializer):
-    """Краткий сериализатор рецепта для подписок."""
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(read_only=True)
     image = serializers.SerializerMethodField()
@@ -98,7 +90,6 @@ class RecipeShortSerializer(serializers.Serializer):
 
 
 class SubscriptionSerializer(CustomUserSerializer):
-    """Сериализатор для отображения подписок."""
     recipes = serializers.SerializerMethodField()
     recipes_count = serializers.SerializerMethodField()
 
@@ -107,14 +98,12 @@ class SubscriptionSerializer(CustomUserSerializer):
             'recipes',
             'recipes_count'
         )
-        read_only_fields = tuple(fields)  # Все поля только для чтения
+        read_only_fields = tuple(fields)  
 
     def get_recipes_count(self, obj):
-        """Получение количества рецептов автора."""
         return obj.recipes.count()
     
     def get_recipes(self, obj):
-        """Получение рецептов с учетом лимита."""
         request = self.context.get('request')
         limit = None
         

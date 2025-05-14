@@ -1,4 +1,3 @@
-# backend/users/views.py
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
@@ -18,13 +17,11 @@ User = get_user_model()
 
 
 class CustomUserViewSet(UserViewSet):
-    """Вьюсет для работы с пользователями."""
     queryset = User.objects.all()
     serializer_class = CustomUserSerializer
     pagination_class = CustomPagination
     
     def get_permissions(self):
-        """Установка прав доступа для различных действий."""
         if self.action == 'me':
             return [IsAuthenticated()]
         elif self.action in ('list', 'retrieve'):
@@ -38,7 +35,6 @@ class CustomUserViewSet(UserViewSet):
         url_path='me/avatar'
     )
     def avatar(self, request):
-        """Обновление или удаление аватара пользователя."""
         user = request.user
         
         if request.method == 'PUT':
@@ -52,7 +48,6 @@ class CustomUserViewSet(UserViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             
-            # Возвращаем только поле avatar
             return Response({'avatar': serializer.data.get('avatar')})
         
         elif request.method == 'DELETE':
@@ -68,29 +63,24 @@ class CustomUserViewSet(UserViewSet):
         permission_classes=[IsAuthenticated]
     )
     def subscribe(self, request, id=None):
-        """Управление подписками на авторов."""
         user = request.user
         author = get_object_or_404(User, id=id)
         
         if request.method == 'POST':
-            # Проверка на подписку на себя
             if user == author:
                 return Response(
                     {'detail': 'Нельзя подписаться на самого себя!'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Проверка существующей подписки
             if Subscription.objects.filter(user=user, author=author).exists():
                 return Response(
                     {'detail': 'Вы уже подписаны на этого автора!'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Создание подписки
             Subscription.objects.create(user=user, author=author)
             
-            # Сериализация и возврат данных автора
             serializer = SubscriptionSerializer(
                 author,
                 context={'request': request}
@@ -98,7 +88,6 @@ class CustomUserViewSet(UserViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         elif request.method == 'DELETE':
-            # Удаление подписки
             subscription = Subscription.objects.filter(
                 user=user,
                 author=author
@@ -119,15 +108,12 @@ class CustomUserViewSet(UserViewSet):
         permission_classes=[IsAuthenticated]
     )
     def subscriptions(self, request):
-        """Получение списка подписок текущего пользователя."""
         user = request.user
         
-        # Получаем авторов, на которых подписан пользователь
         subscriptions = User.objects.filter(
             subscribers__user=user
         )
         
-        # Применяем пагинацию
         page = self.paginate_queryset(subscriptions)
         if page is not None:
             serializer = SubscriptionSerializer(
@@ -137,7 +123,6 @@ class CustomUserViewSet(UserViewSet):
             )
             return self.get_paginated_response(serializer.data)
         
-        # Если пагинация не применяется
         serializer = SubscriptionSerializer(
             subscriptions,
             many=True,

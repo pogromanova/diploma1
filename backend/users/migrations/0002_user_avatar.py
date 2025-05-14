@@ -1,4 +1,3 @@
-# backend/users/migrations/0002_user_avatar.py
 from django.db import migrations, models
 
 

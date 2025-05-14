@@ -1,4 +1,3 @@
-# backend/users/migrations/0003_subscription.py
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
