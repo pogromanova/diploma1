@@ -107,7 +107,7 @@ class SubscriptionSerializer(CustomUserSerializer):
             'recipes',
             'recipes_count'
         )
-        read_only_fields = '__all__'
+        read_only_fields = tuple(fields)  # Все поля только для чтения
 
     def get_recipes_count(self, obj):
         """Получение количества рецептов автора."""
