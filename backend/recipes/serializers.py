@@ -57,7 +57,8 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientCreateSerializer(many=True)
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(),
-        many=True
+        many=True,
+        required=False  # Делаем необязательным для правильной валидации
     )
     image = Base64ImageField()
     cooking_time = serializers.IntegerField(min_value=1)
@@ -74,28 +75,35 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate(self, data):
+        # Проверка обязательности ингредиентов
         if not data.get('ingredients'):
             raise serializers.ValidationError({
                 'ingredients': ['Обязательное поле.']
             })
         
-        if not data.get('tags'):
+        # Проверка обязательности тегов (если указаны, но пустые)
+        if 'tags' in data and not data['tags']:
             raise serializers.ValidationError({
                 'tags': ['Обязательное поле.']
             })
             
         # Проверка уникальности ингредиентов
-        ingredient_ids = [item['id'] for item in data['ingredients']]
-        if len(ingredient_ids) != len(set(ingredient_ids)):
-            raise serializers.ValidationError({
-                'ingredients': ['Ингредиенты должны быть уникальными!']
-            })
+        ingredient_ids = []
+        for item in data['ingredients']:
+            ingredient_id = item['id'].id if hasattr(item['id'], 'id') else item['id']
+            if ingredient_id in ingredient_ids:
+                raise serializers.ValidationError({
+                    'ingredients': ['Ингредиенты должны быть уникальными!']
+                })
+            ingredient_ids.append(ingredient_id)
         
         # Проверка уникальности тегов
-        if len(data['tags']) != len(set(data['tags'])):
-            raise serializers.ValidationError({
-                'tags': ['Теги должны быть уникальными!']
-            })
+        if 'tags' in data and data['tags']:
+            tag_ids = [tag.id if hasattr(tag, 'id') else tag for tag in data['tags']]
+            if len(tag_ids) != len(set(tag_ids)):
+                raise serializers.ValidationError({
+                    'tags': ['Теги должны быть уникальными!']
+                })
         
         return data
 
@@ -113,10 +121,11 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         ingredients = validated_data.pop('ingredients')
-        tags = validated_data.pop('tags')
+        tags = validated_data.pop('tags', [])
         
         recipe = Recipe.objects.create(**validated_data)
-        recipe.tags.set(tags)
+        if tags:
+            recipe.tags.set(tags)
         self.create_ingredients(recipe, ingredients)
         
         return recipe
@@ -184,6 +193,33 @@ class RecipeReadSerializer(serializers.ModelSerializer):
             user=user,
             recipe=obj
         ).exists()
+
+    def to_representation(self, instance):
+        """Переопределяем для корректного отображения URL изображения"""
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        if instance.image and request:
+            data['image'] = request.build_absolute_uri(instance.image.url)
+        
+        return data
+
+
+# Простой сериализатор для ответов favorite и shopping_cart
+class RecipeShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recipe
+        fields = ('id', 'name', 'image', 'cooking_time')
+    
+    def to_representation(self, instance):
+        """Переопределяем для корректного URL изображения"""
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        if instance.image:
+            data['image'] = request.build_absolute_uri(instance.image.url)
+        
+        return data
 
 
 class FavoriteSerializer(serializers.ModelSerializer):

@@ -23,6 +23,7 @@ from .serializers import (
     IngredientSerializer,
     RecipeCreateSerializer,
     RecipeReadSerializer,
+    RecipeShortSerializer,
     ShoppingCartSerializer,
     TagSerializer
 )
@@ -69,7 +70,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
     )
     def get_link(self, request, pk=None):
         recipe = self.get_object()
-        short_link = f"http://localhost/recipes/{recipe.id}/"
+        # Используем request для получения полного URL
+        short_link = request.build_absolute_uri(f'/recipes/{recipe.id}/')
         return Response({'short-link': short_link})
 
     @action(
@@ -88,17 +90,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            favorite = Favorite.objects.create(user=user, recipe=recipe)
+            Favorite.objects.create(user=user, recipe=recipe)
             
-            return Response(
-                {
-                    'id': recipe.id,
-                    'name': recipe.name,
-                    'image': recipe.image.url if recipe.image else None,
-                    'cooking_time': recipe.cooking_time
-                },
-                status=status.HTTP_201_CREATED
+            # Используем короткий сериализатор для ответа
+            serializer = RecipeShortSerializer(
+                recipe,
+                context={'request': request}
             )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         if request.method == 'DELETE':
             favorite = Favorite.objects.filter(user=user, recipe=recipe)
@@ -126,17 +125,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            shopping_cart = ShoppingCart.objects.create(user=user, recipe=recipe)
+            ShoppingCart.objects.create(user=user, recipe=recipe)
             
-            return Response(
-                {
-                    'id': recipe.id,
-                    'name': recipe.name,
-                    'image': recipe.image.url if recipe.image else None,
-                    'cooking_time': recipe.cooking_time
-                },
-                status=status.HTTP_201_CREATED
+            # Используем короткий сериализатор для ответа
+            serializer = RecipeShortSerializer(
+                recipe,
+                context={'request': request}
             )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         if request.method == 'DELETE':
             shopping_cart = ShoppingCart.objects.filter(user=user, recipe=recipe)
@@ -150,7 +146,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        permission_classes=[IsAuthenticated]
+        permission_classes=[IsAuthenticated],
+        methods=['get']
     )
     def download_shopping_cart(self, request):
         ingredients = RecipeIngredient.objects.filter(
@@ -174,7 +171,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             shopping_list,
             content_type='text/plain; charset=utf-8'
         )
-        response['Content_Disposition'] = (
+        response['Content-Disposition'] = (
             'attachment; filename=shopping_list.txt'
         )
         return response

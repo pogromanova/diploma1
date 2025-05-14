@@ -1,3 +1,4 @@
+# backend/recipes/models.py
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.contrib.auth import get_user_model
@@ -66,7 +67,7 @@ class Recipe(models.Model):
     )
     name = models.CharField(
         verbose_name='Название рецепта',
-        max_length=200
+        max_length=200  # Ограничение в 200 символов как в postman тестах
     )
     image = models.ImageField(
         verbose_name='Изображение',
@@ -85,6 +86,7 @@ class Recipe(models.Model):
         Tag,
         verbose_name='Теги',
         related_name='recipes',
+        blank=True  # Делаем необязательным
     )
     cooking_time = models.PositiveSmallIntegerField(
         verbose_name='Время приготовления (в минутах)',

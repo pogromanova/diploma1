@@ -85,13 +85,21 @@ class RecipeShortSerializer(serializers.Serializer):
     """Краткий сериализатор рецепта для подписок."""
     id = serializers.IntegerField(read_only=True)
     name = serializers.CharField(read_only=True)
-    image = serializers.CharField(read_only=True)
+    image = serializers.SerializerMethodField()
     cooking_time = serializers.IntegerField(read_only=True)
+    
+    def get_image(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        elif obj.image:
+            return obj.image.url
+        return None
 
 
 class SubscriptionSerializer(CustomUserSerializer):
     """Сериализатор для отображения подписок."""
-    recipes = RecipeShortSerializer(many=True, read_only=True)
+    recipes = serializers.SerializerMethodField()
     recipes_count = serializers.SerializerMethodField()
 
     class Meta(CustomUserSerializer.Meta):
@@ -105,21 +113,25 @@ class SubscriptionSerializer(CustomUserSerializer):
         """Получение количества рецептов автора."""
         return obj.recipes.count()
     
-    def to_representation(self, instance):
-        """Преобразование данных для ответа с учетом лимита рецептов."""
-        data = super().to_representation(instance)
+    def get_recipes(self, obj):
+        """Получение рецептов с учетом лимита."""
         request = self.context.get('request')
+        limit = None
         
         if request:
-            limit = request.GET.get('recipes_limit')
-            if limit:
+            recipes_limit = request.query_params.get('recipes_limit')
+            if recipes_limit:
                 try:
-                    limit = int(limit)
-                    if limit > 0:
-                        recipes = instance.recipes.all()[:limit]
-                        serializer = RecipeShortSerializer(recipes, many=True)
-                        data['recipes'] = serializer.data
+                    limit = int(recipes_limit)
                 except (ValueError, TypeError):
                     pass
         
-        return data
+        recipes = obj.recipes.all()
+        if limit is not None and limit > 0:
+            recipes = recipes[:limit]
+            
+        return RecipeShortSerializer(
+            recipes,
+            many=True,
+            context=self.context
+        ).data

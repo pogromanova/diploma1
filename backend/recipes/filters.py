@@ -1,3 +1,4 @@
+# backend/recipes/filters.py
 from django_filters import rest_framework as filters
 from django.contrib.auth import get_user_model
 
@@ -9,7 +10,7 @@ User = get_user_model()
 class IngredientFilter(filters.FilterSet):
     name = filters.CharFilter(
         field_name='name', 
-        lookup_expr='startswith'  # Изменено с istartswith на startswith
+        lookup_expr='startswith'
     )
 
     class Meta:
