@@ -1,3 +1,4 @@
+# backend/users/migrations/0001_initial.py
 from django.db import migrations, models
 import django.contrib.auth.models
 import django.contrib.auth.validators
@@ -25,14 +26,16 @@ class Migration(migrations.Migration):
                     max_length=150,
                     unique=True,
                     validators=[django.contrib.auth.validators.UnicodeUsernameValidator()],
-                    verbose_name='username'
+                    verbose_name='username',
+                    help_text='Введите имя пользователя'
                 )),
-                ('first_name', models.CharField(blank=True, max_length=150, verbose_name='first name')),
-                ('last_name', models.CharField(blank=True, max_length=150, verbose_name='last name')),
-                ('email', models.EmailField(max_length=254, unique=True, verbose_name='email address')),
+                ('first_name', models.CharField(max_length=150, verbose_name='first name', help_text='Введите имя')),
+                ('last_name', models.CharField(max_length=150, verbose_name='last name', help_text='Введите фамилию')),
+                ('email', models.EmailField(max_length=254, unique=True, verbose_name='email address', help_text='Введите адрес электронной почты')),
                 ('is_staff', models.BooleanField(default=False, verbose_name='staff status')),
                 ('is_active', models.BooleanField(default=True, verbose_name='active')),
                 ('date_joined', models.DateTimeField(default=timezone.now, verbose_name='date joined')),
+                ('avatar', models.ImageField(blank=True, null=True, upload_to='users/images/', verbose_name='Аватар', help_text='Загрузите аватар')),
                 ('groups', models.ManyToManyField(
                     blank=True,
                     related_name='user_set',

@@ -12,10 +12,10 @@ python manage.py makemigrations users --noinput || true
 python manage.py makemigrations recipes --noinput || true
 
 echo "Running migrations..."
-python manage.py migrate users --noinput || true
-python manage.py migrate recipes 0001_initial --noinput || true
+python manage.py migrate users 0001_initial --noinput || true
+python manage.py migrate recipes 0001_initial --noinput || true  
 python manage.py migrate users 0002_user_avatar --noinput || true
-python manage.py migrate recipes --noinput || true
+python manage.py migrate users 0003_subscription --noinput || true
 python manage.py migrate --noinput || true
 
 echo "Importing ingredients..."
