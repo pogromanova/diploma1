@@ -66,7 +66,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
             headers = self.get_success_headers(serializer.data)
             data = serializer.data
             
-            # Удаляем поле tags из ответа, чтобы соответствовать документации
             if 'tags' in data:
                 del data['tags']
                 
@@ -77,7 +76,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         try:
-            # Проверяем наличие поля ingredients для PATCH-запросов
             if request.method == 'PATCH' and 'ingredients' not in request.data:
                 return Response(
                     {'errors': 'Поле ingredients является обязательным'},
@@ -223,39 +221,30 @@ class RecipeViewSet(viewsets.ModelViewSet):
         methods=['get'],
         url_path='get-link')
     def get_link(self, request, pk=None):
-        """Получение короткой ссылки на рецепт."""
         recipe = self.get_object()
         
-        # Проверяем, существует ли уже короткая ссылка для этого рецепта
         short_link = ShortLink.objects.filter(recipe=recipe).first()
         
-        # Если ссылки нет, создаем новую
         if not short_link:
-            # Генерируем уникальный короткий ID
             while True:
                 short_id = ShortLink.generate_short_id(recipe.id)
                 if not ShortLink.objects.filter(short_id=short_id).exists():
                     break
             
-            # Сохраняем новую короткую ссылку
             short_link = ShortLink.objects.create(
                 recipe=recipe,
                 short_id=short_id
             )
         
-        # Формируем полный URL для короткой ссылки
         domain = request.build_absolute_uri('/').rstrip('/')
         full_short_link = f"{domain}/s/{short_link.short_id}"
         
-        # Возвращаем короткую ссылку в формате, указанном в документации
         return Response({"short-link": full_short_link})
 
 def redirect_short_link(request, short_id):
-    """
-    Перенаправляет с короткой ссылки на страницу рецепта.
-    """
+
     short_link = get_object_or_404(ShortLink, short_id=short_id)
-    return redirect(f'/recipes/{short_link.recipe.id}/')  # Путь к рецепту на фронтенде
+    return redirect(f'/recipes/{short_link.recipe.id}/')  
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
@@ -268,26 +257,21 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     def list(self, request, *args, **kwargs):
         logger.info(f"list called with params: {request.query_params}")
         try:
-            # Считаем общее количество рецептов до применения фильтров
             total_count = Recipe.objects.count()
             logger.info(f"Total recipes in database: {total_count}")
             
-            # Получаем queryset с учетом фильтров
             queryset = self.filter_queryset(self.get_queryset())
             filtered_count = queryset.count()
             logger.info(f"Filtered recipes count: {filtered_count}")
 
-            # Если есть активные фильтры, логируем их
             if request.query_params:
                 logger.info(f"Active filters: {request.query_params}")
                 
-            # Стандартная пагинация
             page = self.paginate_queryset(queryset)
             if page is not None:
                 logger.info(f"Page size: {len(page)}")
                 serializer = self.get_serializer(page, many=True)
                 logger.info(f"Serialized data count: {len(serializer.data)}")
-                # Логируем несколько первых элементов (если они есть)
                 if serializer.data:
                     logger.info(f"First item preview: {serializer.data[0]}")
                 return self.get_paginated_response(serializer.data)

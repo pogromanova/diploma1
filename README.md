@@ -34,7 +34,7 @@ Foodgram - веб-приложение "Продуктовый помощник"
 
 1. Клонируйте репозиторий
 ```
-git clone https://github.com/username/foodgram-project-react.git
+git clone https://github.com/...
 cd foodgram-project-react
 ```
 
@@ -93,3 +93,7 @@ API документация доступна по адресу `/api/docs/` п�
 - `/api/ingredients/` - ингредиенты
 - `/api/recipes/` - рецепты
 - `/api/recipes/download_shopping_cart/` - скачать список покупок
+
+## Автор 
+
+Максим - maxlebed04@mail.ru

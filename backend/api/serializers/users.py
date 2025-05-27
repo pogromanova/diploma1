@@ -1,29 +1,31 @@
+from djoser.serializers import UserCreateSerializer as BaseUserCreateSerializer
+from djoser.serializers import UserSerializer as BaseUserSerializer
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from recipes.models import Recipe
 from users.models import Subscription
-from djoser.serializers import UserSerializer as DjoserUserSerializer
-from djoser.serializers import UserCreateSerializer as DjoserUserCreateSerializer
 import base64
 import uuid
 from django.core.files.base import ContentFile
+import logging
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-class UserCreateSerializer(DjoserUserCreateSerializer):
-    class Meta:
+class UserCreateSerializer(BaseUserCreateSerializer):
+
+    class Meta(BaseUserCreateSerializer.Meta):
         model = User
-        fields = ('email', 'id', 'username', 'first_name',
-                  'last_name', 'password')
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ('email', 'id', 'username', 'first_name', 'last_name', 'password')
 
 
-class UserSerializer(DjoserUserSerializer):
-    is_subscribed = serializers.SerializerMethodField(read_only=True)
+class UserSerializer(BaseUserSerializer):
+
+    is_subscribed = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta(BaseUserSerializer.Meta):
         model = User
         fields = ('email', 'id', 'username', 'first_name',
                   'last_name', 'is_subscribed', 'avatar')
@@ -37,11 +39,9 @@ class UserSerializer(DjoserUserSerializer):
 
     def get_is_subscribed(self, obj):
         request = self.context.get('request')
-        if request is None or request.user.is_anonymous:
-            return False
-        return Subscription.objects.filter(
-            user=request.user, author=obj
-        ).exists()
+        if request and request.user.is_authenticated:
+            return request.user.subscriptions.filter(author=obj).exists()
+        return False
 
 
 class RecipeShortSerializer(serializers.ModelSerializer):
@@ -116,9 +116,7 @@ class AvatarSerializer(serializers.ModelSerializer):
         return {'avatar': None}
         
     def validate_avatar(self, value):
-        """
-        Проверяем, что value - это строка base64 с префиксом данных.
-        """
+
         if not value or not isinstance(value, str):
             raise serializers.ValidationError('Некорректный формат данных')
             
@@ -126,26 +124,20 @@ class AvatarSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Строка не соответствует формату data:mime;base64,')
             
         return value
-        
+
     def update(self, instance, validated_data):
         avatar_data = validated_data.get('avatar')
         
-        # Разбиваем строку на формат и данные
         format, imgstr = avatar_data.split(';base64,')
-        # Получаем расширение файла из формата
         ext = format.split('/')[-1]
         
-        # Создаем уникальное имя файла
         file_name = f"{uuid.uuid4()}.{ext}"
         
-        # Декодируем base64 и сохраняем в файл
         data = ContentFile(base64.b64decode(imgstr), name=file_name)
         
-        # Если у пользователя уже есть аватар - удаляем его
         if instance.avatar:
             instance.avatar.delete()
             
-        # Сохраняем новый аватар
         instance.avatar = data
         instance.save()
         

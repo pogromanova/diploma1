@@ -62,7 +62,6 @@ class IngredientCreateSerializer(serializers.ModelSerializer):
         fields = ('id', 'amount')
 
 
-# Определяем FavoriteSerializer раньше, чтобы избежать ошибок импорта
 class FavoriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Favorite
@@ -103,8 +102,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         return None
 
 class RecipeListSerializer(serializers.ModelSerializer):
-    # Убираем поле tags из открытого объявления
-    # tags = TagSerializer(many=True, read_only=True)  # Эту строку удаляем
+
     
     author = UserSerializer(read_only=True)
     ingredients = RecipeIngredientSerializer(
@@ -121,22 +119,17 @@ class RecipeListSerializer(serializers.ModelSerializer):
         fields = ('id', 'author', 'ingredients',
                   'is_favorited', 'is_in_shopping_cart',
                   'name', 'image', 'text', 'cooking_time')
-        # Убираем 'tags' из списка полей
 
     def to_representation(self, instance):
-        """
-        Переопределяем для обеспечения правильной структуры ответа
-        """
+
         logger.info(f"Serializing recipe {instance.id}: {instance.name}")
         data = super().to_representation(instance)
         
-        # Если по какой-то причине tags все же попал в ответ, удаляем его
         if 'tags' in data:
             del data['tags']
             
         return data
 
-    # Остальные методы без изменений
     def get_image(self, obj):
         request = self.context.get('request')
         if obj.image and hasattr(obj.image, 'url'):
@@ -164,7 +157,6 @@ class RecipeListSerializer(serializers.ModelSerializer):
 
 class RecipeCreateSerializer(serializers.ModelSerializer):
     ingredients = IngredientCreateSerializer(many=True)
-    # Делаем теги необязательными
     tags = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(),
         many=True,

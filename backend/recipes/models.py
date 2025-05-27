@@ -38,11 +38,13 @@ class Tag(models.Model):
 class Ingredient(models.Model):
     name = models.CharField(
         verbose_name='Название ингредиента',
-        max_length=200
+        max_length=200,
+        blank=False
     )
     measurement_unit = models.CharField(
         verbose_name='Единица измерения',
-        max_length=200
+        max_length=200,
+        blank=False 
     )
 
     class Meta:
@@ -69,14 +71,18 @@ class Recipe(models.Model):
     )
     name = models.CharField(
         verbose_name='Название рецепта',
-        max_length=200 
+        max_length=200,
+        blank=False 
+ 
     )
     image = models.ImageField(
         verbose_name='Изображение',
-        upload_to='recipes/images/'
+        upload_to='recipes/images/',
+        blank=False
     )
     text = models.TextField(
-        verbose_name='Описание рецепта'
+        verbose_name='Описание рецепта',
+        blank=False 
     )
     ingredients = models.ManyToManyField(
         Ingredient,
@@ -106,7 +112,7 @@ class Recipe(models.Model):
         ordering = ['-pub_date']
 
     def __str__(self):
-        return f"Recipe(id={self.id}, name={self.name})"
+        return self.name
 
 
 class RecipeIngredient(models.Model):
@@ -224,11 +230,9 @@ class ShortLink(models.Model):
 
     @staticmethod
     def generate_short_id(recipe_id):
-        """Генерирует короткий идентификатор для рецепта."""
-        # Генерируем случайную строку и хешируем её с ID рецепта
+
         random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         hash_input = f"{recipe_id}-{random_str}"
         hash_obj = hashlib.md5(hash_input.encode()).hexdigest()
         
-        # Берем первые 3 символа хеша
         return hash_obj[:3]

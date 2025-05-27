@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth import get_user_model
+from django.utils.html import format_html
 
 from .models import Subscription
 
@@ -15,7 +16,8 @@ class CustomUserAdmin(UserAdmin):
         'email', 
         'first_name',
         'last_name', 
-        'is_staff'
+        'is_staff',
+        'display_avatar'
     )
     list_filter = ('is_staff', 'is_superuser', 'is_active')
     search_fields = ('username', 'email', 'first_name', 'last_name')
@@ -38,6 +40,12 @@ class CustomUserAdmin(UserAdmin):
             )
         }),
     )
+    
+    def display_avatar(self, obj):
+        if obj.avatar:
+            return format_html('<img src="{}" width="30" height="30" />', obj.avatar.url)
+        return "-"
+    display_avatar.short_description = 'Аватар'
 
 
 @admin.register(Subscription)
