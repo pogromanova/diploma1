@@ -2,6 +2,9 @@ from django.db import models
 from django.core.validators import MinValueValidator
 from django.contrib.auth import get_user_model
 from django.db.models import UniqueConstraint
+import hashlib
+import random
+import string
 
 User = get_user_model()
 
@@ -103,7 +106,7 @@ class Recipe(models.Model):
         ordering = ['-pub_date']
 
     def __str__(self):
-        return self.name
+        return f"Recipe(id={self.id}, name={self.name})"
 
 
 class RecipeIngredient(models.Model):
@@ -192,3 +195,40 @@ class ShoppingCart(models.Model):
 
     def __str__(self):
         return f'{self.user.username} - {self.recipe.name}'
+
+
+class ShortLink(models.Model):
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        related_name='short_links',
+        verbose_name='Рецепт'
+    )
+    short_id = models.CharField(
+        max_length=10,
+        unique=True,
+        db_index=True,
+        verbose_name='Короткий идентификатор'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата создания'
+    )
+
+    class Meta:
+        verbose_name = 'Короткая ссылка'
+        verbose_name_plural = 'Короткие ссылки'
+
+    def __str__(self):
+        return f'{self.short_id} -> {self.recipe.name}'
+
+    @staticmethod
+    def generate_short_id(recipe_id):
+        """Генерирует короткий идентификатор для рецепта."""
+        # Генерируем случайную строку и хешируем её с ID рецепта
+        random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        hash_input = f"{recipe_id}-{random_str}"
+        hash_obj = hashlib.md5(hash_input.encode()).hexdigest()
+        
+        # Берем первые 3 символа хеша
+        return hash_obj[:3]
