@@ -1,16 +1,14 @@
 from rest_framework import serializers
 from django.db import transaction
-from django.core.files.base import ContentFile
 import base64
+from django.core.files.base import ContentFile
+import logging
 
-from recipes.models import (Recipe, Tag, Ingredient,
-                           RecipeIngredient, Favorite,
-                           ShoppingCart)
-
-from users.models import User
+from recipes.models import (Recipe, Tag, Ingredient, 
+                          RecipeIngredient, Favorite,
+                          ShoppingCart, User)
 from api.serializers.users import UserSerializer
 
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -18,12 +16,14 @@ class Base64ImageField(serializers.ImageField):
     def to_internal_value(self, data):
         if isinstance(data, str) and data.startswith('data:image'):
             try:
-                format, imgstr = data.split(';base64,')
-                ext = format.split('/')[-1]
-                data = ContentFile(base64.b64decode(imgstr), name=f'temp.{ext}')
-            except Exception as e:
+                img_parts = data.split(';base64,')
+                img_format = img_parts[0]
+                img_str = img_parts[1]
+                ext = img_format.split('/')[-1]
+                decoded = ContentFile(base64.b64decode(img_str), name=f'temp.{ext}')
+                return super().to_internal_value(decoded)
+            except Exception:
                 raise serializers.ValidationError("Invalid image data")
-
         return super().to_internal_value(data)
 
 
@@ -98,12 +98,14 @@ class RecipeSerializer(serializers.ModelSerializer):
     def get_image(self, obj):
         request = self.context.get('request')
         if obj.image and hasattr(obj.image, 'url'):
-            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+            image_url = obj.image.url
+            if request:
+                image_url = request.build_absolute_uri(image_url)
+            return image_url
         return None
 
-class RecipeListSerializer(serializers.ModelSerializer):
 
-    
+class RecipeListSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     ingredients = RecipeIngredientSerializer(
         source='recipe_ingredients',
@@ -119,41 +121,51 @@ class RecipeListSerializer(serializers.ModelSerializer):
         fields = ('id', 'author', 'ingredients',
                   'is_favorited', 'is_in_shopping_cart',
                   'name', 'image', 'text', 'cooking_time')
-
+    
     def to_representation(self, instance):
-
         logger.info(f"Serializing recipe {instance.id}: {instance.name}")
-        data = super().to_representation(instance)
+        representation = super().to_representation(instance)
         
-        if 'tags' in data:
-            del data['tags']
+        if 'tags' in representation:
+            del representation['tags']
             
-        return data
+        return representation
 
     def get_image(self, obj):
         request = self.context.get('request')
         if obj.image and hasattr(obj.image, 'url'):
-            url = request.build_absolute_uri(obj.image.url) if request else obj.image.url
-            logger.debug(f"Recipe {obj.id}: image URL = {url}")
-            return url
+            img_url = obj.image.url
+            if request:
+                img_url = request.build_absolute_uri(img_url)
+            logger.debug(f"Recipe {obj.id}: image URL = {img_url}")
+            return img_url
         logger.warning(f"Recipe {obj.id}: no image available")
         return None
 
     def get_is_favorited(self, obj):
         request = self.context.get('request')
-        if request is None or request.user.is_anonymous:
-            return False
-        result = Favorite.objects.filter(user=request.user, recipe=obj).exists()
-        logger.debug(f"Recipe {obj.id}: is_favorited = {result}")
-        return result
+        if not request or request.user.is_anonymous:
+            is_fav = False
+        else:
+            is_fav = Favorite.objects.filter(
+                user=request.user, 
+                recipe=obj
+            ).exists()
+        logger.debug(f"Recipe {obj.id}: is_favorited = {is_fav}")
+        return is_fav
 
     def get_is_in_shopping_cart(self, obj):
         request = self.context.get('request')
-        if request is None or request.user.is_anonymous:
-            return False
-        result = ShoppingCart.objects.filter(user=request.user, recipe=obj).exists()
-        logger.debug(f"Recipe {obj.id}: is_in_shopping_cart = {result}")
-        return result
+        if not request or request.user.is_anonymous:
+            in_cart = False
+        else:
+            in_cart = ShoppingCart.objects.filter(
+                user=request.user, 
+                recipe=obj
+            ).exists()
+        logger.debug(f"Recipe {obj.id}: is_in_shopping_cart = {in_cart}")
+        return in_cart
+
 
 class RecipeCreateSerializer(serializers.ModelSerializer):
     ingredients = IngredientCreateSerializer(many=True)
@@ -171,67 +183,72 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
                   'image', 'text', 'cooking_time')
 
     def validate_ingredients(self, value):
-        if not value:
+        if len(value) == 0:
             raise serializers.ValidationError(
                 'Добавьте хотя бы один ингредиент!'
             )
         
-        ingredient_ids = [item['id'].id for item in value]
-        if len(ingredient_ids) != len(set(ingredient_ids)):
-            raise serializers.ValidationError(
-                'Ингредиенты не должны повторяться!'
-            )
+        seen_ids = set()
+        for ingredient_item in value:
+            ingredient_id = ingredient_item['id'].id
+            if ingredient_id in seen_ids:
+                raise serializers.ValidationError(
+                    'Ингредиенты не должны повторяться!'
+                )
+            seen_ids.add(ingredient_id)
                 
         return value
 
     def create_ingredients(self, recipe, ingredients):
-        recipe_ingredients = []
-        for item in ingredients:
-            recipe_ingredients.append(
+        ingredients_list = []
+        for ing_data in ingredients:
+            ingredients_list.append(
                 RecipeIngredient(
                     recipe=recipe,
-                    ingredient=item['id'],
-                    amount=item['amount']
+                    ingredient=ing_data['id'],
+                    amount=ing_data['amount']
                 )
             )
-        RecipeIngredient.objects.bulk_create(recipe_ingredients)
+        RecipeIngredient.objects.bulk_create(ingredients_list)
 
     @transaction.atomic
     def create(self, validated_data):
-        ingredients = validated_data.pop('ingredients')
-        tags = validated_data.pop('tags', [])
+        ingredients_data = validated_data.pop('ingredients')
+        tags_data = validated_data.pop('tags', [])
         
-        recipe = Recipe.objects.create(**validated_data)
+        new_recipe = Recipe.objects.create(**validated_data)
         
-        if tags:
-            recipe.tags.set(tags)
+        if len(tags_data) > 0:
+            new_recipe.tags.set(tags_data)
             
-        self.create_ingredients(recipe, ingredients)
-        return recipe
+        self.create_ingredients(new_recipe, ingredients_data)
+        return new_recipe
 
     @transaction.atomic
     def update(self, instance, validated_data):
         if 'ingredients' in validated_data:
-            ingredients = validated_data.pop('ingredients')
+            new_ingredients = validated_data.pop('ingredients')
             instance.recipe_ingredients.all().delete()
-            self.create_ingredients(instance, ingredients)
+            self.create_ingredients(instance, new_ingredients)
             
         if 'tags' in validated_data:
-            tags = validated_data.pop('tags')
-            instance.tags.set(tags)
+            new_tags = validated_data.pop('tags')
+            instance.tags.set(new_tags)
             
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+        for field_name, field_value in validated_data.items():
+            setattr(instance, field_name, field_value)
         
         instance.save()
         return instance
 
     def to_representation(self, instance):
+        context_data = {'request': self.context.get('request')}
         return RecipeListSerializer(
             instance,
-            context={'request': self.context.get('request')}
+            context=context_data
         ).data
     
+
 class ShortLinkSerializer(serializers.Serializer):
     short_link = serializers.URLField(source='short-link')
 

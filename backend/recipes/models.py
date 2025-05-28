@@ -1,27 +1,60 @@
-from django.db import models
-from django.core.validators import MinValueValidator
-from django.contrib.auth import get_user_model
-from django.db.models import UniqueConstraint
-import hashlib
-import random
 import string
+import random
+import hashlib
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.core.validators import MinValueValidator
+from django.db.models import UniqueConstraint, CheckConstraint, F, Q
 
-User = get_user_model()
+
+class User(AbstractUser):
+
+    email = models.EmailField(
+        'Адрес электронной почты',
+        max_length=254,
+        unique=True,
+    )
+    first_name = models.CharField(
+        'Имя',
+        max_length=150,
+    )
+    last_name = models.CharField(
+        'Фамилия',
+        max_length=150,
+    )
+    avatar = models.ImageField(
+        'Аватар',
+        upload_to='users/avatars/', 
+        blank=True,
+        null=True
+    )
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+
+    class Meta:
+        verbose_name = 'Пользователь'
+        verbose_name_plural = 'Пользователи'
+        ordering = ['id']
+
+    def __str__(self):
+        return self.username
 
 
 class Tag(models.Model):
+
     name = models.CharField(
-        verbose_name='Название',
+        'Название',
         max_length=200,
         unique=True,
     )
     color = models.CharField(
-        verbose_name='Цветовой HEX-код',
+        'Цветовой HEX-код',
         max_length=7,
         unique=True,
     )
     slug = models.SlugField(
-        verbose_name='Уникальный слаг',
+        'Уникальный слаг',
         max_length=200,
         unique=True,
     )
@@ -36,15 +69,14 @@ class Tag(models.Model):
 
 
 class Ingredient(models.Model):
+  
     name = models.CharField(
-        verbose_name='Название ингредиента',
+        'Название ингредиента',
         max_length=200,
-        blank=False
     )
     measurement_unit = models.CharField(
-        verbose_name='Единица измерения',
+        'Единица измерения',
         max_length=200,
-        blank=False 
     )
 
     class Meta:
@@ -63,6 +95,7 @@ class Ingredient(models.Model):
 
 
 class Recipe(models.Model):
+
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -70,19 +103,15 @@ class Recipe(models.Model):
         verbose_name='Автор рецепта'
     )
     name = models.CharField(
-        verbose_name='Название рецепта',
+        'Название рецепта',
         max_length=200,
-        blank=False 
- 
     )
     image = models.ImageField(
-        verbose_name='Изображение',
+        'Изображение',
         upload_to='recipes/images/',
-        blank=False
     )
     text = models.TextField(
-        verbose_name='Описание рецепта',
-        blank=False 
+        'Описание рецепта',
     )
     ingredients = models.ManyToManyField(
         Ingredient,
@@ -97,11 +126,11 @@ class Recipe(models.Model):
         blank=True  
     )
     cooking_time = models.PositiveSmallIntegerField(
-        verbose_name='Время приготовления (в минутах)',
+        'Время приготовления (в минутах)',
         validators=[MinValueValidator(1)]
     )
     pub_date = models.DateTimeField(
-        verbose_name='Дата публикации',
+        'Дата публикации',
         auto_now_add=True,
         db_index=True
     )
@@ -116,6 +145,7 @@ class Recipe(models.Model):
 
 
 class RecipeIngredient(models.Model):
+
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
@@ -129,7 +159,7 @@ class RecipeIngredient(models.Model):
         related_name='recipe_ingredients'
     )
     amount = models.PositiveSmallIntegerField(
-        verbose_name='Количество',
+        'Количество',
         validators=[MinValueValidator(1)]
     )
 
@@ -147,7 +177,25 @@ class RecipeIngredient(models.Model):
         return f'{self.ingredient.name} ({self.amount} {self.ingredient.measurement_unit})'
 
 
-class Favorite(models.Model):
+class UserRecipeRelation(models.Model):
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Пользователь',
+    )
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        verbose_name='Рецепт',
+    )
+
+    class Meta:
+        abstract = True
+
+
+class Favorite(UserRecipeRelation):
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -175,7 +223,8 @@ class Favorite(models.Model):
         return f'{self.user.username} - {self.recipe.name}'
 
 
-class ShoppingCart(models.Model):
+class ShoppingCart(UserRecipeRelation):
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -204,6 +253,7 @@ class ShoppingCart(models.Model):
 
 
 class ShortLink(models.Model):
+
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
@@ -211,14 +261,14 @@ class ShortLink(models.Model):
         verbose_name='Рецепт'
     )
     short_id = models.CharField(
+        'Короткий идентификатор',
         max_length=10,
         unique=True,
         db_index=True,
-        verbose_name='Короткий идентификатор'
     )
     created_at = models.DateTimeField(
+        'Дата создания',
         auto_now_add=True,
-        verbose_name='Дата создания'
     )
 
     class Meta:
@@ -226,13 +276,48 @@ class ShortLink(models.Model):
         verbose_name_plural = 'Короткие ссылки'
 
     def __str__(self):
-        return f'{self.short_id} -> {self.recipe.name}'
+        return f'{self.short_id} → {self.recipe.name}'
 
     @staticmethod
     def generate_short_id(recipe_id):
 
-        random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-        hash_input = f"{recipe_id}-{random_str}"
-        hash_obj = hashlib.md5(hash_input.encode()).hexdigest()
+        chars = string.ascii_letters + string.digits
+        random_part = ''.join(random.choices(chars, k=8))
         
-        return hash_obj[:3]
+        input_str = f"{recipe_id}-{random_part}"
+        hash_value = hashlib.md5(input_str.encode()).hexdigest()
+        
+        return hash_value[:3]
+
+
+class Subscription(models.Model):
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='subscriptions',
+        verbose_name='Подписчик'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='subscribers',
+        verbose_name='Автор'
+    )
+
+    class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+        constraints = [
+            UniqueConstraint(
+                fields=['user', 'author'],
+                name='unique_subscription'
+            ),
+            CheckConstraint(
+                check=~Q(user=F('author')),
+                name='prevent_self_subscription'
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} подписан на {self.author.username}'

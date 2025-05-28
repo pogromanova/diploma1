@@ -1,30 +1,37 @@
-import os
 from pathlib import Path
+import os
+import sys
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-i6p4v!25k36dx53j_)qk)@6g62(a^4rp=pbo@%e)l4vz3h8&+m')
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-i6p4v!25k36dx53j_)qk)@6g62(a^4rp=pbo@%e)l4vz3h8&+m')
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '*']
 
-INSTALLED_APPS = [
+DJANGO_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+]
+
+THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'djoser',
     'django_filters',
-    'users.apps.UsersConfig',
+]
+
+PROJECT_APPS = [
     'recipes.apps.RecipesConfig',
     'api.apps.ApiConfig',
-
 ]
+
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + PROJECT_APPS
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -38,29 +45,31 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'foodgram.urls'
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
+TEMPLATE_CONFIG = {
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': [],
+    'APP_DIRS': True,
+    'OPTIONS': {
+        'context_processors': [
+            'django.template.context_processors.debug',
+            'django.template.context_processors.request',
+            'django.contrib.auth.context_processors.auth',
+            'django.contrib.messages.context_processors.messages',
+        ],
     },
-]
+}
+
+TEMPLATES = [TEMPLATE_CONFIG]
 
 WSGI_APPLICATION = 'foodgram.wsgi.application'
 
+DB_CONFIG = {
+    'ENGINE': 'django.db.backends.sqlite3',
+    'NAME': PROJECT_ROOT / 'db.sqlite3',
+}
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': DB_CONFIG
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -79,26 +88,22 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'ru-ru'
-
 TIME_ZONE = 'Europe/Moscow'
-
 USE_I18N = True
-
 USE_L10N = True
-
 USE_TZ = True
 
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATIC_ROOT = PROJECT_ROOT / 'static'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = PROJECT_ROOT / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-AUTH_USER_MODEL = 'users.User'
+AUTH_USER_MODEL = 'recipes.User'
 
-REST_FRAMEWORK = {
+REST_FRAMEWORK_CONFIG = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
@@ -108,10 +113,11 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
     ],
-
 }
 
-DJOSER = {
+REST_FRAMEWORK = REST_FRAMEWORK_CONFIG
+
+DJOSER_CONFIG = {
     'LOGIN_FIELD': 'email',
     'HIDE_USERS': False,
     'SERIALIZERS': {
@@ -134,7 +140,9 @@ DJOSER = {
     },
 }
 
-LOGGING = {
+DJOSER = DJOSER_CONFIG
+
+LOG_FORMAT = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
@@ -168,3 +176,5 @@ LOGGING = {
         },
     },
 }
+
+LOGGING = LOG_FORMAT

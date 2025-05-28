@@ -1,27 +1,25 @@
 from djoser.serializers import UserCreateSerializer as BaseUserCreateSerializer
 from djoser.serializers import UserSerializer as BaseUserSerializer
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from recipes.models import Recipe
-from users.models import Subscription
-import base64
 import uuid
-from django.core.files.base import ContentFile
 import logging
+import base64
+from django.core.files.base import ContentFile
+from django.contrib.auth import get_user_model
+
+from recipes.models import Recipe, Subscription
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
 class UserCreateSerializer(BaseUserCreateSerializer):
-
     class Meta(BaseUserCreateSerializer.Meta):
         model = User
         fields = ('email', 'id', 'username', 'first_name', 'last_name', 'password')
 
 
 class UserSerializer(BaseUserSerializer):
-
     is_subscribed = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
 
@@ -31,17 +29,19 @@ class UserSerializer(BaseUserSerializer):
                   'last_name', 'is_subscribed', 'avatar')
 
     def get_avatar(self, obj):
-        if obj.avatar and hasattr(obj.avatar, 'url'):
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.avatar.url)
+        has_avatar = obj.avatar and hasattr(obj.avatar, 'url')
+        if has_avatar:
+            current_request = self.context.get('request')
+            if current_request:
+                return current_request.build_absolute_uri(obj.avatar.url)
+            return obj.avatar.url
         return None
 
     def get_is_subscribed(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return request.user.subscriptions.filter(author=obj).exists()
-        return False
+        current_request = self.context.get('request')
+        if not current_request or not current_request.user.is_authenticated:
+            return False
+        return current_request.user.subscriptions.filter(author=obj).exists()
 
 
 class RecipeShortSerializer(serializers.ModelSerializer):
@@ -53,9 +53,10 @@ class RecipeShortSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'name', 'image', 'cooking_time')
     
     def get_image(self, obj):
-        request = self.context.get('request')
-        if obj.image and hasattr(obj.image, 'url'):
-            return request.build_absolute_uri(obj.image.url)
+        current_request = self.context.get('request')
+        has_image = obj.image and hasattr(obj.image, 'url')
+        if has_image and current_request:
+            return current_request.build_absolute_uri(obj.image.url)
         return None
 
 
@@ -69,12 +70,19 @@ class SubscriptionSerializer(UserSerializer):
                   'last_name', 'is_subscribed', 'recipes', 'recipes_count', 'avatar')
 
     def get_recipes(self, obj):
-        request = self.context.get('request')
-        limit = request.query_params.get('recipes_limit')
-        recipes = obj.recipes.all()
-        if limit and limit.isdigit():
-            recipes = recipes[:int(limit)]
-        return RecipeShortSerializer(recipes, many=True, context=self.context).data
+        current_request = self.context.get('request')
+        limit_param = current_request.query_params.get('recipes_limit')
+        
+        recipes_queryset = obj.recipes.all()
+        if limit_param and limit_param.isdigit():
+            recipes_queryset = recipes_queryset[:int(limit_param)]
+            
+        serializer_context = {'request': current_request}
+        return RecipeShortSerializer(
+            recipes_queryset, 
+            many=True, 
+            context=serializer_context
+        ).data
 
     def get_recipes_count(self, obj):
         return obj.recipes.count()
@@ -86,17 +94,19 @@ class SubscribeSerializer(serializers.ModelSerializer):
         fields = ('user', 'author')
 
     def validate(self, data):
-        user = data['user']
-        author = data['author']
+        current_user = data['user']
+        author_obj = data['author']
         
-        if user == author:
+        if current_user.id == author_obj.id:
             raise serializers.ValidationError(
                 'Нельзя подписаться на самого себя!'
             )
-        if Subscription.objects.filter(user=user, author=author).exists():
+            
+        if Subscription.objects.filter(user=current_user, author=author_obj).exists():
             raise serializers.ValidationError(
                 'Вы уже подписаны на этого пользователя!'
             )
+            
         return data
 
 
@@ -108,37 +118,45 @@ class AvatarSerializer(serializers.ModelSerializer):
         fields = ('avatar',)
 
     def to_representation(self, instance):
-        request = self.context.get('request')
-        if instance.avatar and hasattr(instance.avatar, 'url'):
-            return {
-                'avatar': request.build_absolute_uri(instance.avatar.url)
-            }
+        current_request = self.context.get('request')
+        has_avatar = instance.avatar and hasattr(instance.avatar, 'url')
+        
+        if has_avatar:
+            avatar_url = instance.avatar.url
+            if current_request:
+                avatar_url = current_request.build_absolute_uri(avatar_url)
+            return {'avatar': avatar_url}
+            
         return {'avatar': None}
         
     def validate_avatar(self, value):
-
-        if not value or not isinstance(value, str):
+        is_valid_type = value and isinstance(value, str)
+        if not is_valid_type:
             raise serializers.ValidationError('Некорректный формат данных')
-            
-        if 'data:' not in value or ';base64,' not in value:
+        
+        has_valid_format = 'data:' in value and ';base64,' in value
+        if not has_valid_format:
             raise serializers.ValidationError('Строка не соответствует формату data:mime;base64,')
             
         return value
 
     def update(self, instance, validated_data):
-        avatar_data = validated_data.get('avatar')
+        avatar_string = validated_data.get('avatar')
         
-        format, imgstr = avatar_data.split(';base64,')
-        ext = format.split('/')[-1]
+        format_part, data_part = avatar_string.split(';base64,')
+        extension = format_part.split('/')[-1]
         
-        file_name = f"{uuid.uuid4()}.{ext}"
+        unique_filename = f"{uuid.uuid4()}.{extension}"
         
-        data = ContentFile(base64.b64decode(imgstr), name=file_name)
+        avatar_content = ContentFile(
+            base64.b64decode(data_part), 
+            name=unique_filename
+        )
         
         if instance.avatar:
             instance.avatar.delete()
             
-        instance.avatar = data
+        instance.avatar = avatar_content
         instance.save()
         
         return instance

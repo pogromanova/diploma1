@@ -1,65 +1,59 @@
 #!/bin/sh
 
-echo "Waiting for postgres..."
-while ! nc -z $DB_HOST $DB_PORT; do
-  sleep 0.1
+echo "Проверка доступности PostgreSQL..."
+until nc -z $DB_HOST $DB_PORT; do
+  echo "PostgreSQL недоступен - ожидание..."
+  sleep 1
 done
-echo "PostgreSQL started"
+echo "PostgreSQL запущен и готов к работе"
 
-echo "Making migrations..."
-python manage.py makemigrations --noinput || true
-python manage.py makemigrations users --noinput || true
-python manage.py makemigrations recipes --noinput || true
+echo "Генерация миграций..."
+python manage.py makemigrations --noinput
+python manage.py makemigrations recipes --noinput
 
-echo "Running migrations..."
-python manage.py migrate users --noinput || true
-python manage.py migrate recipes --noinput || true
-python manage.py migrate --noinput || true
+echo "Применение миграций..."
+python manage.py migrate recipes --noinput
+python manage.py migrate --noinput
 
-echo "Creating superuser..."
-python manage.py shell <<EOF
+echo "Настройка учетной записи администратора..."
+python manage.py shell <<PYTHON_SCRIPT
 from django.contrib.auth import get_user_model
 User = get_user_model()
-if not User.objects.filter(email='admin@admin.com').exists():
-    User.objects.create_superuser('admin', 'admin@admin.com', 'admin')
-EOF
+admin_exists = User.objects.filter(email='admin@admin.com').exists()
+if not admin_exists:
+    User.objects.create_superuser(
+        username='admin',
+        email='admin@admin.com',
+        password='admin'
+    )
+    print("Администратор создан")
+else:
+    print("Администратор уже существует")
+PYTHON_SCRIPT
 
-echo "Creating test data..."
-python manage.py shell <<EOF
-from recipes.models import Tag, Ingredient
-from users.models import User
+echo "Инициализация тестовых данных..."
+python manage.py shell <<PYTHON_SCRIPT
+from recipes.models import Tag, Ingredient, User
 
-tags = [
+# Создание тегов
+sample_tags = [
     {'name': 'Завтрак', 'color': '#FF5733', 'slug': 'breakfast'},
     {'name': 'Обед', 'color': '#33FF57', 'slug': 'lunch'},
     {'name': 'Ужин', 'color': '#3357FF', 'slug': 'dinner'},
     {'name': 'Десерт', 'color': '#FF33F5', 'slug': 'dessert'},
 ]
-for tag_data in tags:
-    Tag.objects.get_or_create(**tag_data)
 
-if not User.objects.filter(email='test@test.com').exists():
-    user = User.objects.create_user(
-        username='testuser',
-        email='test@test.com',
-        password='testpassword',
-        first_name='Test',
-        last_name='User'
-    )
+for tag_info in sample_tags:
+    Tag.objects.get_or_create(**tag_info)
 
-if not Ingredient.objects.exists():
-    Ingredient.objects.bulk_create([
-        Ingredient(name='Мука', measurement_unit='г'),
-        Ingredient(name='Сахар', measurement_unit='г'),
-        Ingredient(name='Яйцо', measurement_unit='шт'),
-    ])
-EOF
 
-echo "Importing ingredients (if needed)..."
-python manage.py import_ingredients || echo "Ingredients import skipped"
+PYTHON_SCRIPT
 
-echo "Collecting static files..."
+echo "Импорт полного списка ингредиентов..."
+python manage.py ingredient_importer || echo "Импорт ингредиентов пропущен"
+
+echo "Сбор статических файлов..."
 python manage.py collectstatic --noinput
 
-echo "Starting server..."
+echo "Запуск сервера..."
 exec "$@"
